@@ -1,3 +1,13 @@
+# Fork of cbuild
+
+I really liked the original idea of generating `C` source files and headers and build scriptfiles from a single `C module`, thus making the process of compilation almost trivial. I would like to give the project my own spin.
+
+Long term goals to achaive:
+
+1. Port the source from `C` to `Go`, to improve portability, perhaps even readability and maintainability. `Go` is much easier to cross compile as well.
+2. Add more build script backends. [Ninja](https://ninja-build.org/) for example.
+3. Implement on a package manager. This would be really neat, but I am not sure if I will have the time to pull it off. 
+
 # cbuild 2.0 - builder and preprocessor for modular c files  [![Build Status](https://travis-ci.org/MobiusHorizons/cbuild.svg?branch=master)](https://travis-ci.org/MobiusHorizons/cbuild)
 
 This project provides a build system for building programs and libraries in a modular `C` syntax.
