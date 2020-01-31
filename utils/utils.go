@@ -1,56 +1,62 @@
-#include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <stdio.h>
-#include <time.h>
-export {
-#include <stdbool.h>
+package utils
+
+import (
+    "os"
+)
+
+func countLevels(path string) int {
+    return strings.Count(path, os.PathSeparator)
 }
 
-#define SEP '/'
-
-int count_levels(const char * path){
-	int i = 0, levels = 0;
-	bool escaped = false;
-
-	while(path[i] != '\0'){
-		if (escaped) {
-			escaped = false;
-			continue;
-		}
-		if (path[i] == '\\') escaped = true;
-		if (path[i] == SEP) levels++;
-		i++;
-	}
-
-	return levels;
+func Relative(from, to string) (s string) {
+	// determine shared prefix
+    
+    ii, lastStep = 0, 0
+	
+    l1, l2 := len(from), len(to)
+    
+    ll := 0
+    
+    if l1 > l2 {
+        ll = l2
+    } else {
+        ll = l1
+    }
+    
+    for ii = 0; ii < ll; ii++ {
+        c1, c2 := from[ii], to[ii]
+        
+        if c1 != c2 {
+            break
+        }
+        
+        if IsPathSeparator(c1) {
+            lastStep = ii
+        }
+    }
+    
+	dots := countLevels(from[last_sep + 1: l1])
+    
+    if dots == 0 {
+        dots = 2
+    } else {
+        dots *= 3
+    }
+    
+    // TODO: check to make sure this is right
+    s := make(byte[], dots + l2 - lastSep + 1)
+	s[0] = 0;
+    
+    for dots-- {
+        s += "../"
+    }
+	
+    s += to[lastSep + 1: l2]
+    
+    return
 }
 
-export char * relative(const char * from, const char * to){
-	// determine shared prefix;
-
-	int i = 0, last_sep = 0;
-	while(from[i] != '\0' && to[i] != '\0' && from[i] == to[i]){
-		if (from[i] == SEP){
-			last_sep = i;
-		}
-		i++;
-	}
-	int dots = count_levels(&from[last_sep +1]);
-
-	char * rel = malloc((dots == 0 ? 2 : (dots * 3)) + strlen(&to[last_sep]) + 1);
-	rel[0] = 0;
-	/*if (dots == 0){*/
-			/*strcpy(rel, "./");*/
-	/*}*/
-	while (dots--){
-		strcat(rel, "../");
-	}
-	strcat(rel, &to[last_sep + 1]);
-	return rel;
-}
-
-export bool newer(const char * a, const char * b) {
+func Newer(a, b string) bool {
 	struct stat sta;
 	struct stat stb;
 

@@ -1,38 +1,25 @@
-import stream from "../deps/stream/stream.module.c";
-import item   from "./item.module.c";
-import buffer from "./buffer.module.c";
+package lexer
 
-export {
-#include <stdlib.h>
-#include <stdbool.h>
-}
+import (
+    "github.com/bozso/cbuild/lexer/item"
+)
 
-#include <string.h>
-#include <stdarg.h>
-#include <stdio.h>
+type (
+    Lexer struct {
+        stream.t * in;
+        input, filename string
+        
+        
+        length, start, pos, width, line, line_pos int
+        
+        items []item.Item;
+        state StateFn
+    }
 
-export struct lexer_s;
-export typedef void * (*state_fn)(struct lexer_s * lex);
+    StateFn func(*Lexer) 
+)
 
-export typedef struct lexer_s{
-	stream.t * in;
-	char     * input;
-	char     * filename;
-	size_t     length;
-	size_t     start;
-	size_t     pos;
-	size_t     width;
-	size_t     line;
-	size_t     line_pos;
-	buffer.t * items;
-	state_fn   state;
-} lexer_t as t;
-
-static char * substring(const char * input, size_t start, size_t end);
-static void count_newlines(lexer_t * lex);
-
-
-export lexer_t * new(state_fn start, stream.t * in, const char * filename) {
+New(StateFn start, stream.t * in, filename string) Lexer {
 	lexer_t * lex = calloc(1, sizeof(lexer_t));
 
 	lex->in       = in;
