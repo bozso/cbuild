@@ -1,9 +1,9 @@
 package item
 
-type Type int
+type T int
 
 const(
-	Error Type = iota
+	Error T = iota
 	Eof
 	Whitespace
 	CCode
@@ -41,14 +41,14 @@ var TypeNames = string[totalSymbols]{
 }
 
 type Item struct {
-	itype Type
+	itype T
 	value string
     length, line, linePos, start, index int
 }
 
-var Empty = Item{0}
+var Empty = Item{}
 
-func New(value string, itype Type, line, line_pos, start int) Item {
+func New(value string, itype T, line, line_pos, start int) Item {
 	return Item{
 		value    : value,
 		length   : len(value),

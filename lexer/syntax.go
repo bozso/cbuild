@@ -1,234 +1,258 @@
-package "lex_syntax";
+package lexer
 
-#include <ctype.h>
-#include <string.h>
+import (
+    "fmt"
+    "github.com/bozso/cbuild/lexer/item"
+)
 
-import lexer  from "./lex.module.c";
-import stream from "../deps/stream/stream.module.c";
-
-/* declaration for state functions */
-static void * lex_c(lexer.t * lex);
-
-static void * lex_comment(lexer.t * lex);
-/*static void * lex_export(lexer.t * lex);*/
-
-static void * lex_whitespace(lexer.t * lex);
-static void * lex_id(lexer.t * lex);
-static void * lex_number(lexer.t * lex);
-static void * lex_quote(lexer.t * lex);
-static void * lex_squote(lexer.t * lex);
-static void * lex_preprocessor(lexer.t * lex);
-
-export lexer.t * new(stream.t * input, const char * filename, char ** error) {
-	return lexer.new(lex_c, input, filename);
+func New(input stream, string filename) Lexer {
+    return new(lexC, input, filename) 
 }
 
-static void * emit_c_code(lexer.t * lex, lexer.state_fn fn){
-	lexer.backup(lex);
+func (l *Lexer) emitCCode(fn StateFn) StateFn {
+    l.Backup()
+    
+    if l.pos > l.start {
+        l.Emit(item.CCode)
+    }
+    
+    if fn == nil {
+        l.Next()
+    }
 
-	if (lex->pos > lex->start) {
-			lexer.emit(lex, item_c_code);
-	}
-
-	if (fn == NULL) lexer.next(lex);
-
-	return fn;
+	return fn
 }
 
-static void * eof(lexer.t * lex) {
-	lexer.backup(lex);
+func (l * Lexer) eof() {
+	l.Backup()
 
-	if (lex->pos > lex->start) {
-			lexer.emit(lex, item_c_code);
+	if (l.pos > l.start) {
+        l.Emit(item.CCode)
 	}
-	lexer.emit(lex, item_eof);
+    
+	l.Emit(item.Eof);
 
-	return NULL;
+	return nil;
 }
 
 /* lexes standard C code looking for things that might be modular c */
-static void * lex_c(lexer.t * lex) {
-	char next;
 
-	while (true) {
-		char c = lexer.next(lex);
+func lex_c(l *Lexer) {
+    var next byte
+    
+	for {
+		c := l.Next()
 
-		if (c == 0)      return eof(lex);
-		if (isspace(c))  return emit_c_code(lex, lex_whitespace);
-		if (isalpha(c))  return emit_c_code(lex, lex_id);
-		if (isdigit(c)) return emit_c_code(lex, lex_number);
+		if c == 0 {
+            return l.eof()
+        }
+        
+		if isspace(c) {
+            return l.emitCCode(lex_whitespace)
+        }
+        
+		if isalpha(c) {
+            return l.emitCCode(lex_id)
+        }
+        
+		if isdigit(c) {
+            return l.EmitCCode(lex_number)
+        }
 
-		switch(c) {
+		switch c {
 			case '\'':
-				return emit_c_code(lex, lex_squote);
+				return l.emitCCode(lex_squote);
 
 			case '"':
-				return emit_c_code(lex, lex_quote);
+				return l.emitCCode(lex_quote);
 
-			case ';':
-			case '.':
-			case ',':
-			case '=':
-			case '*':
-				emit_c_code(lex, NULL);
-				lexer.emit(lex, item_symbol);
-				break;
+			case ';', '.', ',', '=', '*':
+				l.emitCCode(nil)
+				l.Emit(item.Symbol)
 
 			case '-':
-				if (lexer.peek(lex) == '>') {
-					lexer.next(lex);
-					lexer.emit(lex, item_arrow);
+				if (l.Peek() == '>') {
+					l.Next();
+					l.Emit(item.Arrow)
 				}
-				break;
-
 			case '#':
-				if (lex->pos > 2 && lex->input[lex->pos - 2] == '\n')
-					return emit_c_code(lex, lex_preprocessor);
-				break;
-
+				if (l.pos > 2 && l.input[l.pos - 2] == '\n') {
+					return l.emitCCode(lex_preprocessor)
+                }
 			case '_':
-				return emit_c_code(lex, lex_id);
+				return l.emitCCode(lex_id)
 
 			case '/':
-				next = lexer.peek(lex);
-				if (next == '/' || next == '*')
-					return emit_c_code(lex, lex_comment);
-				break;
-
-			case '(':
-			case '[':
-			case '{':
-				emit_c_code(lex, NULL);
-				lexer.emit(lex, item_open_symbol);
-				break;
-
-			case ')':
-			case ']':
-			case '}':
-				emit_c_code(lex, NULL);
-				lexer.emit(lex, item_close_symbol);
-				break;
-
+				next = l.Peek();
+				if next == '/' || next == '*' {
+					return l.emitCCode(lex_comment)
+                }
+			
+            case '(', '[', '{':
+				l.emitCCode(nil)
+				l.Emit(item.OpenSymbol)
+            
+			case ')', ']', '}':
+				l.emitCCode(nil)
+				l.emit(itemCloseSymbol)
 		}
 	}
 }
 
-
-static void * lex_whitespace(lexer.t * lex) {
-	char c;
-	while ((c = lexer.next(lex)) != 0 && isspace(c));
-	lexer.backup(lex);
-	lexer.emit(lex, item_whitespace);
-
-	if (c == 0) return eof(lex);
-	return lex_c;
-}
-
-static void * lex_oneline_comment(lexer.t * lex) {
-	char c;
-	while ((c = lexer.next(lex)) != 0 && c != '\n');
-	lexer.emit(lex, item_comment);
-	if (c == 0) return eof(lex);
-	return lex_c;
-}
-
-static void * lex_multiline_comment(lexer.t * lex) {
-	char c;
-	do {
-		while ((c = lexer.next(lex)) != 0 && c != '*');
-
-		if (c == 0) {
-			lexer.errorf(lex, "Unterminated multiline comment\n %*s", lex->input + lex->start);
-			return eof(lex);
-		}
-
-	} while (lexer.peek(lex) != '/');
-
-	lexer.next(lex);
-	lexer.emit(lex, item_comment);
-	return lex_c;
-}
-
-static void * lex_comment(lexer.t * lex) {
-	lex->pos++;
-	char c = lexer.next(lex);
-
-	if (c == '/') return lex_oneline_comment(lex);
-	else          return lex_multiline_comment(lex);
-}
-
-static void * lex_number(lexer.t * lex) {
-	char c;
-	while ((c = lexer.next(lex)) != 0 && isdigit(c));
-	lexer.backup(lex);
-	lexer.emit(lex, item_number);
-
-	if (c == 0) return eof(lex);
-	return lex_c;
-}
-
-static void * lex_id(lexer.t * lex) {
-	char c;
-	while ((c = lexer.next(lex)) != 0 && (isalnum(c) || c == '_'));
-	lexer.backup(lex);
-	lexer.emit(lex, item_id);
-
-	if (c == 0) return eof(lex);
-	return lex_c;
-}
-
-
-static void * lex_quote(lexer.t * lex) {
-	lex->pos ++;
-
-	char c;
-	do {
-		c = lexer.next(lex);
-		if (c == '\\' && lexer.next(lex) != 0) {
-			c = lexer.next(lex);
-			continue;
-		}
-	} while(c != 0 && c != '"' && c != '\n');
-
-	if (c == 0 || c == '\n') {
-		return lexer.errorf(lex, "Missing terminating '\"' character\n");
-	}
-
-	lexer.emit(lex, item_quoted_string);
-	return lex_c;
-}
-
-static void * lex_squote(lexer.t * lex) {
-	lex->pos ++;
-
-	char c;
-	do {
-		c = lexer.next(lex);
-		if (c == '\\' && lexer.next(lex) != 0) {
-			c = lexer.next(lex);
-			continue;
-		}
-	} while(c != 0 && c != '\'');
+func lex_whitespace(l *Lexer) StateFn {
+	var c byte
+    
+    for (c = l.Next()) != 0 && isspace(c) {}
+	
+    l.Backup()
+	l.Emit(item.Whitespace)
 
 	if (c == 0) {
-		size_t length = lex->pos - lex->start;
-		if (length > 10) {
-			return lexer.errorf(lex, "Missing terminating ' character\n%.*s...", 10, lex->input + lex->start);
-		} else {
-			return lexer.errorf(lex, "Missing terminating ' character\n%s", lex->input + lex->start);
-		}
-	}
-
-	lexer.emit(lex, item_char_literal);
+        return l.eof()
+    }
+    
 	return lex_c;
 }
 
-static void * lex_preprocessor(lexer.t * lex) {
-	char c = lexer.next(lex);
-	while (c != '\n' && c != 0) {
-		c = lexer.next(lex);
+func lex_oneline_comment(l *Lexer) StateFn {
+	var c byte
+    
+    for (c = l.Next()) != 0 && c != '\n' {}
+	
+    l.Emit(item.Comment)
+    
+	if (c == 0) {
+        return l.eof()
+    }
+    
+	return lex_c
+}
+
+func lex_multiline_comment(l *Lexer) StateFn {
+	var c byte
+	
+    for l.Peek() != '/' {
+		for (c = l.Next()) != 0 && c != '*' {}
+
+		if (c == 0) {
+			l.Errorf("Unterminated multiline comment\n %*s",
+                l.input + l.start)
+            
+			return l.eof()
+		}
+
 	}
-	lexer.backup(lex);
-	lexer.emit(lex, item_preprocessor);
-	return lex_c;
+
+	l.Next();
+	l.Emit(item.Comment)
+    
+	return lex_c
+}
+
+func lex_comment(l *Lexer) StateFn {
+	l.pos++
+    
+	c = l.Next()
+
+	if (c == '/') {
+        return lex_oneline_comment(l)
+    } else {
+        return lex_multiline_comment(l)
+    }
+}
+
+func lex_number(l * Lexer) StateFn {
+	var c byte
+    
+	for (c = l.Next()) != 0 && isdigit(c) {}
+	
+    l.Backup()
+	l.Emit(item.Number)
+
+	if (c == 0) {
+        return l.eof()
+    }
+    
+	return lex_c
+}
+
+func lex_id(l *Lexer) StateFn {
+	var c byte
+    
+	for (c = l.Next()) != 0 && (isalnum(c) || c == '_') {}
+    
+	l.Backup();
+	l.Emit(item.Id)
+
+	if (c == 0) {
+        return l.eof()
+    }
+    
+	return lex_c
+}
+
+
+func lex_quote(l *Lexer) StateFn {
+	l.pos++
+
+	c = byte('\'')
+    
+	for c != 0 && c != '"' && c != '\n' {
+		c = l.Next()
+        
+		if c == '\\' && l.Next() != 0 {
+			c = l.Next()
+			continue
+		}
+	}
+
+	if c == 0 || c == '\n' {
+		return l.Errorf("Missing terminating '\"' character\n");
+	}
+
+	l.Emit(item.QuotedString)
+    
+	return lex_c
+}
+
+func lex_squote(l *Lexer) StateFn {
+	l.pos++
+
+	c := byte('"')
+    
+	for c != 0 && c != '\'' {
+		c = lexer.next(lex);
+		if c == '\\' && l.Next() != 0 {
+			c = l.Next()
+			continue
+		}
+	}
+
+	if (c == 0) {
+		length := lex.pos - l.start;
+		if (length > 10) {
+			return l.Errorf("Missing terminating ' character\n%.*s...",
+                10, l.input + l.start)
+		} else {
+			return l.Errorf("Missing terminating ' character\n%s",
+                l.input + l.start)
+		}
+	}
+
+	l.Emit(item.CharLiteral)
+    
+	return lex_c
+}
+
+func lex_preprocessor(lexer.t * lex) StateFn {
+	c := l.Next()
+    
+	for c != '\n' && c != 0 {
+		c = l.Next();
+	}
+    
+	l.Backup();
+	l.Emit(item.Preprocessor)
+    
+	return lex_c
 }

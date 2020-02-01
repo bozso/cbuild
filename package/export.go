@@ -1,16 +1,8 @@
-package "package_export";
+package pgk
 
-#include <stdlib.h>
-#include <stdio.h>
-#include "../deps/hash/hash.h"
-#include <stdbool.h>
-
-import Package from "./package.module.c";
-import stream  from "../deps/stream/stream.module.c";
-import atomic  from "./atomic-stream.module.c";
-import utils   from "../utils/utils.module.c";
-import str     from "../utils/strings.module.c";
-build  depends      "../deps/hash/hash.c";
+import (
+    "github.com/bozso/cbuild/utils"
+)
 
 export enum export_type {
 	type_block = 0,
@@ -32,43 +24,24 @@ const char * type_names[] = {
 	"header",
 };
 
-export typedef struct {
-	char      * local_name;
-	char      * export_name;
-	char      * declaration;
-	char      * symbol;
-	enum export_type   type;
-} Export_t as t;
-
-export void free(Export_t * exp) {
-	if (exp == NULL) return;
-
-	if (exp->local_name == exp->export_name) {
-		global.free(exp->local_name);
-	} else {
-		global.free(exp->local_name);
-		global.free(exp->export_name);
-	}
-	global.free(exp->declaration);
-
-	global.free(exp->symbol);
-	global.free(exp);
+type Export struct {
+    localName, exportName, declaration, symbol string
+    Type export.T
 }
 
-static hash_t * types = NULL;
-static void init_types() {
-	types = hash_new();
-
-	hash_set(types, "typedef",  (void*)type_type);
-	hash_set(types, "function", (void*)type_function);
-	hash_set(types, "enum",     (void*)type_enum);
-	hash_set(types, "union",    (void*)type_union);
-	hash_set(types, "struct",   (void*)type_struct);
-	hash_set(types, "header",   (void*)type_header);
+types = map[string]export.T{
+    "typdef": export.Type,
+    "function": export.Function,
+    "enum": export.Enum,
+    "union": export.Union,
+    "struct": export.Struct,
+    "header": export.Header,
 }
 
-export char * add(char * local, char * alias, char * symbol, char * type, char * declaration, Package.t * parent) {
-	char * export_name = alias == NULL ? local : alias; 
+
+func Add(local, alias, symbol, Type, symbol, declaration string parent Pkg) string
+	string export_name = alias == NULL ? local : alias;
+    
 	if (hash_has(parent->exports, export_name)) {
 		global.free(local);
 		global.free(alias);

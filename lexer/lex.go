@@ -1,143 +1,131 @@
 package lexer
 
 import (
+    "io"
     "github.com/bozso/cbuild/lexer/item"
 )
 
 type (
     Lexer struct {
-        stream.t * in;
+        in io.Reader
         input, filename string
         
         
         length, start, pos, width, line, line_pos int
         
-        items []item.Item;
+        items []item.T;
         state StateFn
     }
 
     StateFn func(*Lexer) 
 )
 
-New(StateFn start, stream.t * in, filename string) Lexer {
-	lexer_t * lex = calloc(1, sizeof(lexer_t));
-
-	lex->in       = in;
-	lex->filename = strdup(filename);
-	lex->input    = NULL;
-	lex->length   = 0;
-	lex->items    = buffer.new(2);
-	lex->state    = start;
-	lex->line     = 0;
-
-	return lex;
+func new(start StateFn, in io.Reader, filename string) (l Lexer) {
+	l.in = in
+    l.filename = filename
+    l.items = make([]item.Item, 2)
+    l.state = start
+    
+	return;
 }
 
-export state_fn errorf(lexer_t * lex, const char * fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
-
-	char * message = NULL;
-	vasprintf(&message, fmt, args);
-	item.t error = item.new(message, item_error, lex->line, lex->line_pos, lex->pos);
-	lex->items = buffer.push(lex->items, error);
-
-	va_end(args);
-	return NULL;
+func (l *Lexer) Errorf(string fmt, args ...interface{}) StateFn {
+    msg = fmt.Sprintf(fmt, args...)
+    
+    err := item.New(msg, item.Error, l.line, l.linePos, l.pos)
+    l.items = append(l.items, err)
+    
+    return nil
 }
 
-export char next(lexer_t * lex) {
-	if (lex->pos + 1 > lex->length) {
+func (l *Lexer) Next() byte {
+	if (l.pos + 1 > l.length) {
 		if (lex->in->error.code != 0) {
-			errorf(lex, "Error reading input: %s", lex->in->error.message);
-			return 0;
+			l.Errorf("Error reading input: %s", lex->in->error.message)
+			return 0
 		}
 
-		size_t next_length = lex->length + 4096 + 1;
-		lex->input = realloc(lex->input, next_length);
-		ssize_t len = stream.read(lex->in, lex->input + lex->length, 4096);
+		nextLength := l.length + 4096 + 1
+		l.input = realloc(l.input, nextLength)
+        
+		Len := stream.read(l.in, l.input + l.length, 4096)
 
-		if (len < 0) {
-			errorf(lex, "Error reading input: %s", lex->in->error.message);
-			return 0;
+		if (Len < 0) {
+			l.Errorf("Error reading input: %s", lex->in->error.message);
+			return 0
 		}
 
-		if (len == 0) return 0;
+		if (Len == 0) return 0
 
-		lex->length += len;
-		lex->input[lex->length] = 0;
+		l.length += Len
+		l.input[l.length] = 0;
 	}
 
-	lex->width = 1;
-	return lex->input[lex->pos++];
+	l.width = 1;
+	return l.input[l.pos++]
 }
 
-export void backup(lexer_t * lex) {
-	lex->pos -= lex->width;
+func (l *Lexer) Backup() {
+	l.pos -= l.width
 }
 
-export char peek(lexer_t * lex) {
-	char c = next(lex);
-	backup(lex);
-	return c;
+func (l *Lexer) Peek() (c byte) {
+	c = l.Next()
+	l.Backup()
+    
+	return
 }
 
-export bool accept(lexer_t * lex, const char * matching) {
-	char t = next(lex);
-	const char *  c = matching;
-	while (*c != '\0') {
-		if (t == *c) return true;
-		c++;
-	}
+func (l *Lexer) Accept(matching string) bool {
+	t := l.Next()
+    
+    // possible better implementation
+    // return strings.Contains(matching, l.Next())
+    
+    ll := len(matching)
+    
+    for ii := 0; ii < ll; ii++ {
+        if t == matching[ii] {
+            return true
+        }
+    }
 	return false;
 }
 
-export void accept_run(lexer_t * lex, const char * matching) {
-	while (accept(lex, matching));
-	backup(lex);
+func (l *Lexer) AcceptRun(matching string) {
+	for l.Accept(matching) {
+        l.Backup()
+    }
 }
 
-export void ignore(lexer_t * lex) {
-	lex->start  = lex->pos;
+func (l *Lexer) Ignore() {
+	l.start  = l.pos
 }
 
-export void emit(lexer_t * lex, enum item.type it) {
-	count_newlines(lex);
-	item.t i = item.new (
-			substring(lex->input, lex->start, lex->pos),
-			it, lex->line, lex->line_pos, lex->start
-	);
+func (l *Lexer) Emit(it item.T) {
+	l.countNewlines()
+	
+    i := item.New(l.input[l.start : l.pos] it, l.line, l.linePos,
+        l.start)
 
-	lex->items = buffer.push(lex->items, i);
-	lex->start = lex->pos;
+	l.items = append(l.items, i);
+	l.start = l.pos
 }
 
-export item.t next_item(lexer_t * lex) {
+func (l *Lexer) NextItem() item.T {
 	while(lex->items->length == 0 && lex->state != NULL) {
 		lex->state = (state_fn) lex->state(lex);
 	}
+    
 	return buffer.next(lex->items);
 }
 
-export void free(lexer_t * lex) {
-	stream.close(lex->in);
 
-	buffer.free(lex->items);
-	global.free(lex->filename);
-	global.free(lex->input);
-	global.free(lex);
-}
-
-static char * substring(const char * input, size_t start, size_t end) {
-	return strndup(input + start, end - start);
-}
-
-static void count_newlines(lexer_t * lex) {
-	size_t i;
-	for (i = lex->start; i < lex->pos; i++) {
-		if (lex->input[i] == '\n') {
-			lex->line++;
-			lex->line_pos = i+1;
-		}
-	}
+func (l *Lexer) countNewlines() {
+    for ii := lex.start; ii < lex.pos; ii++ {
+        if l.input[ii] == '\n' {
+            l.line++
+            l.linePos = ii + 1
+        }
+    }
 }

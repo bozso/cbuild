@@ -2,21 +2,17 @@
 #include <stdio.h>
 #include <string.h>
 
-import parser     from "./parser.module.c";
-import string     from "./string.module.c";
-import lex_item   from "../lexer/item.module.c";
-import pkg_import from "../package/import.module.c";
-import Package    from "../package/package.module.c";
-import utils      from "../utils/utils.module.c";
-import str        from "../utils/strings.module.c";
+import (
+    "github.com/bozso/cbuild/lexer"
+    "github.com/bozso/cbuild/pkg"
+    "github.com/bozso/cbuild/utils"
+    "github.com/bozso/cbuild/lexer/item"
+)
 
-static int errorf(parser.t * p, lex_item.t item, const char * fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
+func (p* parser) errorf(it item.T, fmt string, args ...interface{}) int {
+	p.verrorf(it, "Invalid import syntax: ", fmt, args...)
 
-	parser.verrorf(p, item, "Invalid import syntax: ", fmt, args);
-
-	return -1;
+	return -1
 }
 
 export int parse(parser.t * p) {
