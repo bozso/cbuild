@@ -1,489 +1,547 @@
-#include <stdarg.h>
-#include <stdio.h>
+package parser
 
-build depends "../deps/hash/hash.c";
-#include "../deps/hash/hash.h"
+import (
+    "strings"
+    
+    "github.com/bozso/cbuild/lexer"
+    "github.com/bozso/cbuild/lexer/item"
+    "github.com/bozso/cbuild/pkg"
+    "github.com/bozso/cbuild/utils"
+)
 
-import parser     from "./parser.module.c";
-import string     from "string.module.c";
-import utils      from "../utils/utils.module.c";
-import str        from "../utils/strings.module.c";
-import identifier from "./identifier.module.c";
-import lex_item   from "../lexer/item.module.c";
-import Package    from "../package/package.module.c";
-import pkg_export from "../package/export.module.c";
-import pkg_import from "../package/import.module.c";
+var (
+    enumi = item.Item{value: "enum", length: 4, itype: item.Id}
+    unioni = item.Item{value: "union", length: 5, itype: item.Id}
+    structi = item.Item{value: "struct", length: 6, itype: item.Id}
+)
 
-const lex_item.t enum_i   = { .value = "enum",   .length = 4, .type = item_id };
-const lex_item.t union_i  = { .value = "union",  .length = 5, .type = item_id };
-const lex_item.t struct_i = { .value = "struct", .length = 6, .type = item_id };
-
-typedef struct {
-	lex_item.t * items;
-	size_t       length;
-	bool         error;
-} decl_t;
-
-static lex_item.t errorf(parser.t * p, lex_item.t item, decl_t * decl, const char * fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
-
-	parser.verrorf(p, item, "Invalid export syntax: ", fmt, args);
-	decl->error = true;
-	return lex_item.empty;
+type decl struct {
+	items []item.Item
+	length int
+	err bool
 }
 
-static void append(decl_t * decl, lex_item.t value) {
-	decl->items = realloc(decl->items, sizeof(lex_item.t) * (decl->length + 1));
-	decl->items[decl->length] = value;
-	decl->length++;
+func (p *Parser) errorf_(it item.Item, d *decl, fmt string, args ...interface{}) item.Item {
+	p.verrorf(it, "Invalid export syntax: ", fmt, args...);
+	d.err = true
+    
+	return item.Empty
 }
 
-static void rewind_until(parser.t * p, decl_t * decl, lex_item.t item) {
-	ssize_t last = decl->length -1;
+func (d *decl) append(value item.Item) {
+    d.items = append(d.items, value)
+}
 
-	while (last >= 0 && !lex_item.equals(item, decl->items[last])) {
-		parser.backup(p, decl->items[last]);
-		last--;
+func (p *Parser) rewindUntil(d *decl, it item.Item) {
+	last := d.length -1;
+
+	for last >= 0 && !it.Equals(d.items[last]) {
+		p.Backup(d.items[last])
+		last--
 	}
-	parser.backup(p, decl->items[last]);
+    
+	p.Backup(d.items[last])
 
-	decl->length = last;
+	d.length = last
 }
 
-static void rewind_whitespace(parser.t * p, decl_t * decl, lex_item.t item) {
-	parser.backup(p, item);
+func (p *Parser) rewindWhitespace(d *decl, it item.Item) {
+	p.Backup(it);
 
-	ssize_t last = decl->length -1;
-	while (last >= 0 && decl->items[last].type == item_whitespace) {
-		parser.backup(p, decl->items[last]);
-		last--;
+	last := d.length - 1
+    
+	for last >= 0 && d.items[last].itype == item.Whitespace {
+		p.Backup(d.items[last])
+		last--
 	}
 
-	decl->length = last + 1;
+	d.length = last + 1
 }
 
-static lex_item.t symbol_rename(parser.t * p, decl_t * decl, lex_item.t name, lex_item.t alias) {
-	int i;
-	for (i = 0; i < decl->length; i++) {
-		lex_item.t item = decl->items[i];
-		if (lex_item.equals(name, item)) {
-			char * symbol_name = NULL;
+func (p *Parser) symbolRename(d *decl, name, alias item.Item) item.Item {
+	for ii := 0; ii < d.length; ii++ {
+		it := d.items[ii];
+		if name.Equals(it) {
+            exportName := ""
+            
+            if alias.itype == 0 {
+                exportName = name.value
+            } else {
+                exportName = alias.value
+            }
+			
+            symbolName := fmt.Sprintf("%s_%s", p.Pkg.name, exportName)
 
-			char * export_name = alias.type == 0 ? name.value : alias.value;
-			asprintf(&symbol_name, "%s_%s", p->pkg->name, export_name);
-
-			item = lex_item.replace_value(item, symbol_name);
-			decl->items[i] = item;
-			return item;
+			it := it.ReplaceValue(symbolName)
+            
+			d.items[ii] = it
+			return it
 		}
 	}
-	return lex_item.empty;
+    
+	return item.Empty
 }
 
-static void free_decl(decl_t * decl) {
-	int i;
-	for (i = 0; i < decl->length; i++) {
-		lex_item.free(decl->items[i]);
-	}
-	global.free(decl->items);
-}
-
-static char * emit(parser.t * p, decl_t * decl, bool is_function, bool is_extern) {
-	size_t length = 0;
-	int start = 0;
-	int end = decl->length;
-	int i;
+func (p *Parser) emit(d *decl, isFn, isExtern bool) string {
+	length := 0
+	start := 0
+	end := d.length
 
 	// trim leading/trailing whitespace
-	while (start < end && decl->items[start  ].type == item_whitespace) start++;
-	while (end > start && decl->items[end - 1].type == item_whitespace) end--;
+	
+    for start < end && d.items[start].itype == item.Whitespace {
+        start++
+    }
+    
+	for end > start && d.items[end - 1].itype == itemWhitespace) {
+        end--
+    }
 
-	for (i = 0; i < decl->length; i++) {
-		lex_item.t item = decl->items[i];
-		if (!is_extern) Package.emit(p->pkg, item.value);
-		if (i >= start && i < end) length += item.length;
+	for ii := 0; ii < d.length; ii++ {
+		it := d.items[ii]
+		
+        if !isExtern {
+            Package.emit(p->pkg, it.value)
+        }
+        
+		if ii >= start && ii < end {
+            length += it.length
+        }
 	}
 
-	if (is_function) length ++;
+	if isFn {
+        length++
+    }
 
-	char * output = malloc(length + 1);
-	length = 0;
-	for (i = start; i < end; i++) {
-		lex_item.t item = decl->items[i];
-		memcpy(output + length, item.value, item.length);
-		length += item.length;
+	output = strings.Builder{}
+    
+	for ii := start; ii < end; ii++ {
+		output.WriteString(d.items[ii].value)
 	}
 
-	if (is_function && !is_extern) output[length++] = ';';
+	if isFn && !isExtern {
+        output.WriteByte(';')
+    }
 
-	output[length] = 0;
-	return output;
+	return output.String()
 }
 
-static lex_item.t collect_newlines(parser.t * p, decl_t * decl) {
-	size_t line     = p->lexer->line;
-	lex_item.t item = parser.next(p);
+func (p *Parser) collectNewlines(d *decl) item.Item {
+	line := p.lexer.line
+	it := p.Next(p)
 
-	while (item.type == item_whitespace || item.type == item_comment) {
-		if (p->lexer->line != line) {
-			append(decl, item);
-		} else {
-		lex_item.free(item);
+	for it.itype == item.Whitespace || it.itype == item.Comment {
+		if p.lexer.line != line {
+			d.append(it)
+        }
+
+		line = p.lexer.line
+		it := p.Next(p)
 	}
 
-		line = p->lexer->line;
-		item = parser.next(p);
+	return it
+}
+
+func (p *Parser) Collect(d *decl) item.Item {
+	it = p.Next()
+
+	for it.itype == it.Whitespace || it.itype == item.Comment {
+		d.append(it)
+		it = p.Next()
 	}
 
-	return item;
+	return it;
 }
 
-static lex_item.t collect(parser.t * p, decl_t * decl) {
-	lex_item.t item = parser.next(p);
+var exportTypes = map[string]exportFn{
+    "typedef": parse_typedef,
+    "struct":  parse_struct,
+    "enum":   parse_enum,
+    "union":   parse_union,
+}
 
-	while (item.type == item_whitespace || item.type == item_comment) {
-		append(decl, item);
-		item = parser.next(p);
+type exportFn func(p *Parser, d *decl) item.Item
+
+func parse_semicolon(p *Parser, d *decl) {
+	if d.err {
+        return
+    }
+
+	it = p.collectNewlines(d)
+
+	if it.itype != itemSymbol || it.value[0] != ';' {
+		p.errorf_(it, d, "expecting ';' but got %s", it.String())
+		return
 	}
-
-	return item;
+    
+	d.append(it)
 }
 
-static lex_item.t parse_typedef       (parser.t * p, decl_t * decl);
-static lex_item.t parse_struct        (parser.t * p, decl_t * decl);
-static lex_item.t parse_enum          (parser.t * p, decl_t * decl);
-static lex_item.t parse_union         (parser.t * p, decl_t * decl);
-static lex_item.t parse_struct_block  (parser.t * p, decl_t * decl, lex_item.t start);
-static lex_item.t parse_enum_block    (parser.t * p, decl_t * decl, lex_item.t start);
-static lex_item.t parse_export_block  (parser.t * p, decl_t * decl);
-static lex_item.t parse_as            (parser.t * p, decl_t * decl);
-static lex_item.t parse_variable      (parser.t * p, decl_t * decl);
-static lex_item.t parse_function      (parser.t * p, decl_t * decl);
-static lex_item.t parse_function_args (parser.t * p, decl_t * decl);
+func (p *Parser) Parse() int {
+	d := decl{}
+    
+	var fn exportFn = nil
+    
+    name, alias := item.Item{}, item.Item{}
+	hasSemicolon, isExtern := false, false
+	t := 0
 
-static int parse_passthrough (parser.t * p);
+	it := p.collectNewlines(&d)
 
-static hash_t * export_types = NULL;
-static void init_export_types(){
-	export_types = hash_new();
-
-	hash_set(export_types, "typedef", parse_typedef);
-	hash_set(export_types, "struct",  parse_struct );
-	hash_set(export_types, "enum",    parse_enum   );
-	hash_set(export_types, "union",   parse_union  );
-}
-
-typedef lex_item.t (*export_fn)(parser.t * p, decl_t * decl);
-
-void parse_semicolon(parser.t * p, decl_t * decl) {
-	if (decl->error) return;
-
-	lex_item.t item = collect_newlines(p, decl);
-
-	if (item.type != item_symbol || item.value[0] != ';') {
-		errorf(p, item, decl, "expecting ';' but got %s", lex_item.to_string(item));
-		return;
-	}
-	append(decl, item);
-}
-
-export int parse(parser.t * p) {
-	if (export_types == NULL) init_export_types();
-
-	decl_t decl  = {0};
-	export_fn fn = NULL;
-	lex_item.t name  = {0};
-	lex_item.t alias = {0};
-	bool has_semicolon = false;
-	bool is_extern     = false;
-	int t = 0;
-
-	lex_item.t type = collect_newlines(p, &decl);
-
-	switch (type.type) {
-		case item_id:
-			if (strcmp("extern", type.value) == 0) {
-				append(&decl, type);
-				is_extern = true;
-				type = collect(p, &decl);
+	switch it.itype {
+		case item.Id:
+			if it.value == "extern" {
+				d.append(it)
+				isExtern = true
+				it = p.Collect(&d)
 			}
-			fn = (export_fn) hash_get(export_types, type.value);
-			has_semicolon = is_extern || fn != NULL;
-			t = 1;
-			break;
-		case item_symbol:
-			if (type.value[0] == '*') {
-				lex_item.free(type);
-				return parse_passthrough(p);
+            
+            fn, ok := exportTypes[item.value]
+            
+			hasSemicolon = isExtern || ok
+			t = 1
+
+		case item.Symbol:
+			if it.value[0] == '*' {
+				return p.parsePassthrough()
 			}
-			break;
-		case item_open_symbol:
-			if (type.value[0] == '{') {
+
+		case item.OpenSymbol:
+			if it.value[0] == '{' {
 				fn = parse_export_block;
-				lex_item.free(type);
-				type.value = "{";
-				t = 0;
+				it.value = "{"
+				t = 0
 			}
-			break;
-		default:
-			fn = NULL;
-			break;
+		
+        default:
+			fn = nil;
 	}
-	if (fn == NULL) {
-		parser.backup(p, type);
-		type.type = item_symbol;
-		type.value = "variable";
-		type.length = str.len("variable");
-		name = parse_variable(p, &decl);
-		t = 2;
+    
+	if fn == nil {
+		p.Backup(it)
+        
+		it.itype = item.Symbol
+        
+		it.value = "variable";
+		it.length = len("variable")
+		name = parse_variable(p, &d)
+		t = 2
 	} else {
-		if (t == 1) append(&decl, type);
-		name = fn(p, &decl);
+		if t == 1 {
+            d.append(it)
+        }
+        
+		name = fn(p, &d)
 	}
 
-	alias = parse_as(p, &decl);
-	if (has_semicolon) parse_semicolon(p, &decl);
-	if (decl.error) {
-		free_decl(&decl);
-		return -1;
+	alias = parse_as(p, &d)
+    
+	if hasSemicolon {
+        parse_semicolon(p, &d)
+    }
+    
+	if d.err {
+		return -1
 	}
 
-	if (name.type == 0) {
-		errorf(p, type, &decl, "can't export anonymous symbols");
-		free_decl(&decl);
-		return -1;
+	if name.itype == 0 {
+		p.errorf_(it, &d, "can't export anonymous symbols")
+		return -1
 	}
 
-	lex_item.t original_name = lex_item.dup(name);
-	lex_item.t symbol = symbol_rename(p, &decl, name, alias);
+	original_name := name.Dup()
+	symbol := p.symbolRename(&d, name, alias)
 
-	if (symbol.type == 0 && fn != parse_export_block) {
-		errorf(p, type, &decl, "unable to export symbol '%s'", name.value);
-		free_decl(&decl);
-		return -1;
+	if symbol.itype == 0 && fn != parse_export_block {
+		p.errorf_(it, &d, "unable to export symbol '%s'", name.value)
+		return -1
 	}
 
 	pkg_export.add(
-		str.dup(original_name.value),
-		str.dup(alias.value),
-		str.dup(symbol.value),
-		type.value, 
-		emit(p, &decl, t==2, is_extern),
+		original_name.value,
+		alias.value,
+		symbol.value,
+		it.value, 
+		p.emit(&d, t==2, isExtern),
 		p->pkg
-	);
-	lex_item.free(original_name);
-	lex_item.free(alias);
-	free_decl(&decl);
-	return 1;
+	)
+    
+	return 1
 }
 
-static int parse_passthrough(parser.t * p) {
-	decl_t decl = {0};
-	lex_item.t from = collect(p, &decl);
-	if (from.type != item_id || strcmp(from.value, "from") != 0) {
-		parser.errorf(p, from, "Exporting passthrough: ", "expected 'from', but got %s", lex_item.to_string(from));
-		free_decl(&decl);
-		return -1;
+func parse_passthrough(p *Parser) int {
+	d := decl{}
+    
+	from = p.Collect(&d)
+    
+	if from.itype != item.Id || from.value == "from" {
+		p.errorf_(from, "Exporting passthrough: ",
+            "expected 'from', but got %s", from.String())
+		return -1
 	}
-	lex_item.free(from);
-
-	lex_item.t filename = collect(p, &decl);
-	if (filename.type != item_quoted_string) {
-		parser.errorf(p, filename, "Exporting passthrough: ", "expected filename, but got %s", lex_item.to_string(filename));
-		free_decl(&decl);
-		return -1;
-	}
-
-	parse_semicolon(p, &decl);
-	if (decl.error) {
-		free_decl(&decl);
-		return -1;
+    
+	filename := p.Collect(&d)
+    
+	if filename.itype != item.QuotedString {
+		p.errorf_(filename, "Exporting passthrough: ",
+            "expected filename, but got %s", filename.String())
+		return -1
 	}
 
-	char * error = NULL;
-	pkg_import.t * imp = pkg_import.passthrough(p->pkg, str.dup(string.parse(filename.value)), &error);
-	if (imp == NULL) {
-		parser.errorf(p, filename, "Exporting passthrough: ", "%s", error);
-		free_decl(&decl);
-		return -1;
+	parse_semicolon(p, &d)
+	
+    if d.err {
+		return -1
 	}
-	lex_item.free(filename);
 
-	char * header = NULL;
-	char * rel =  utils.relative(p->pkg->source_abs, imp->pkg->header);
-	asprintf(&header, "#include \"%s\"", rel);
-	Package.emit(p->pkg, header);
+	err = ""
+    
+	imp := pkg.Passthrough(p.Pkg, Parse(filename.value), &err)
+	
+    if imp == nil {
+		p.errorf_(filename, "Exporting passthrough: ", "%s", err)
+		return -1
+	}
+    
+	header = ""
+	rel :=  utils.Relative(p.Pkg.SourceAbs, imp.Pkg.Header)
+    
+	header := fmt.Sprintf("#include \"%s\"", rel)
+    
+	p.Pkg.Emit(header)
 
-	free_decl(&decl);
-	global.free(rel);
-	global.free(header);
-	return 1;
+	return 1
 }
 
-static lex_item.t parse_as(parser.t * p, decl_t * decl) {
-	if (decl->error) return lex_item.empty;
+Func parse_as(p *Parser, d *decl) item.Item {
+	if d.err {
+        return item.Empty
+    }
 
-	size_t start = decl->length;
+	start := d.length
 
-	lex_item.t as = collect(p, decl);
-	if (as.type != item_id || strcmp("as", as.value) != 0) {
-		parser.backup(p, as);
-		while(decl->length > start) {
-			decl->length--;
-			parser.backup(p, decl->items[decl->length]);
+	as := p.Collect(d)
+    
+	if as.itype != item.Id || "as" == as.value {
+		p.Backup(as)
+        
+		for d.length > start {
+			d.length--;
+			p.Backup(d.items[d.length])
 		}
-		return lex_item.empty;
+        
+		return item.Empty
 	}
-	lex_item.free(as);
-
-	while(decl->length > start) {
-		decl->length--;
-		parser.backup(p, decl->items[decl->length]);
-	}
-
-	lex_item.t alias = collect_newlines(p, decl);
-
-	if (alias.type != item_id) {
-		errorf(p, alias, decl, "expecting identifier but got %s", lex_item.to_string(alias));
-		return lex_item.empty;
+    
+	for d.length > start {
+		d.length--
+		p.Backup(d.items[d.length])
 	}
 
-	return alias;
+	alias := p.collectNewlines(d)
+
+	if alias.itype != item.Id {
+		p.errorf_(alias, d, "expecting identifier but got %s",
+            alias.String())
+		return item.Empty
+	}
+
+	return alias
 }
 
-static lex_item.t parse_function_ptr(parser.t * p, decl_t * decl) {
-	lex_item.t star = collect(p, decl);
-	if (star.type != item_symbol || star.value[0] != '*') {
-		return errorf(p, star, decl, "function pointer: expecting '*' but found '%s'", star.value);
+func parse_function_ptr(p *Parser, d *decl) item.Item {
+	star := p.Collect(d)
+	
+    if star.itype != item.Symbol || star.value[0] != '*' {
+		return p.errorf_(star, d,
+            "function pointer: expecting '*' but found '%s'",
+            star.value)
 	}
-	append(decl, star);
+    
+	d.append(star)
 
-	lex_item.t name = collect(p, decl);
-	if (name.type != item_id) {
-		return errorf(p, name, decl, "function pointer: expecting identifier but found '%s'", name.value);
+	name := p.Collect(d)
+    
+	if name.itype != item.Id {
+		return p.errorf_(name, d,
+            "function pointer: expecting identifier but found '%s'",
+            name.value)
 	}
-	append(decl, name);
+    
+	d.append(name)
 
-	lex_item.t item;
-
-	item = collect(p, decl);
-	if (item.type != item_close_symbol || item.value[0] != ')') {
-		return errorf(p, item, decl, "function pointer: expecting ')' but found '%s'", item.value);
+	it := p.collect(d)
+    
+	if it.itype != item.CloseSymbol || it.value[0] != ')' {
+		return p.errorf_(it, d,
+            "function pointer: expecting ')' but found '%s'",
+            it.value)
 	}
-	append(decl, item);
+    
+	d.append(it)
 
-	item = collect(p, decl);
-	if (item.type != item_open_symbol || item.value[0] != '(') {
-		return errorf(p, item, decl, "function pointer: expecting '(' but found '%s'", item.value);
+	it := p.Collect(d)
+    
+	if it.itype != item.OpenSymbol || it.value[0] != '(' {
+		return p.errorf_(it, d,
+            "function pointer: expecting '(' but found '%s'",
+            it.value)
 	}
-	append(decl, item);
+    
+	d.append(it)
 
-	parse_function_args(p, decl);
+	parse_function_args(p, d)
 
-	if (decl->error) return lex_item.empty;
-	return name;
+	if (d.err) {
+        return item.Empty
+    }
+    
+	return name
 }
-static lex_item.t parse_declaration(parser.t * p, decl_t * decl) {
-	lex_item.t type = collect(p, decl);
-	if (type.type != item_id) {
-		if (type.type == item_close_symbol && type.value[0] == '}') return type;
-		return errorf(p, type, decl, "in declaration: expecting identifier but got %s",
-				lex_item.to_string(type));
+
+func parse_declaration(p *Parser, d *decl) item.Item {
+	t := p.Collect(d)
+    
+	if t.itype != item.Id {
+		if t.itype == itemCloseSymbol && t.value[0] == '}' {
+            return t;
+        }
+        
+		return p.errorf(t, d,
+            "in declaration: expecting identifier but got %s",
+            t.String())
 	}
-	if (strcmp("as", type.value) == 0) return type;
-	type = identifier.parse(p, type, true);
+    
+	if "as" == t.value {
+        return t;
+    }
+    
+	t = idParse(p, t, true);
 
-	export_fn fn = (export_fn) hash_get(export_types, type.value);
+	fn, ok := exportTypes[t.value]
 
-	if (fn == parse_typedef) {
-		return errorf(p, type, decl, "in declaration: unexpected identifier 'typedef'");
+	if fn == parse_typedef {
+		return p.errorf_(t, d,
+            "in declaration: unexpected identifier 'typedef'")
 	}
 
-	if (fn == NULL) {
-		fn = parse_variable;
+	if !ok {
+		fn = parse_variable
 	}
-	append(decl, type);
+    
+	d.append(t)
 
-	lex_item.t item = fn(p, decl);
-	if (decl->error) return lex_item.empty;
+	it := fn(p, d)
+    
+	if (d.err) {
+        return item.Empty
+    }
 
-	if (fn == parse_enum || fn == parse_union || fn == parse_struct) {
-		item = collect(p, decl);
-		if (item.type != item_id) {
-			parser.backup(p, item);
+	if fn == parse_enum || fn == parse_union || fn == parse_struct {
+		it = p.Collect(p, d)
+        
+		if it.itype != item.Id {
+			p.Backup(it)
 		} else {
-			append(decl, item);
+			d.append(it)
 		}
 	}
-	parse_semicolon(p, decl);
-	if (decl->error) return lex_item.empty;
-	return item;
+    
+	parse_semicolon(p, d);
+    
+	if (d.err) {
+        return item.Empty
+    }
+	
+    return it
 }
 
 
-static lex_item.t parse_typedef (parser.t * p, decl_t * decl) {
-	lex_item.t type = collect(p, decl);
-	if (type.type != item_id) {
-		return errorf(p, type, decl, "in typedef: expected identifier");
+func parse_typedef(p *Parser, d *decl) item.Item {
+    
+	t := p.collect(p, d)
+    
+	if t.itype != item.Id {
+		return p.errorf(t, d, "in typedef: expected identifier")
 	}
 
-	export_fn fn = (export_fn) hash_get(export_types, type.value);
+	fn, ok := exportTypes[t.value]
 
 	/*if (fn != parse_struct && fn != parse_enum && fn != parse_union) append(decl, type);*/
-	append(decl, type);
+	d.append(t)
 
-	if (fn != NULL) {
-		fn(p, decl);
-		if (decl->error) return lex_item.empty;
+	if ok {
+		fn(p, d)
+		
+        if d.err {
+            return item.Empty
+        }
 	}
 
-	lex_item.t item;
-	lex_item.t name = {0};
-	bool function_ptr = false;
-	bool as           = false;
-	do {
-		item = collect(p, decl);
+	it, name = item.Item{}, item.Item{}
 
-		switch(item.type) {
-			case item_eof:
-				return errorf(p, item, decl, "in typedef: expected identifier or '('");
-			case item_id:
-				if (strcmp("as", item.value) == 0) {
-					rewind_whitespace(p, decl, item);
-					as = true;
-					continue;
+	function_ptr, as := false, false;
+
+	for it.itype != itemError &&
+        !(it.itype == item.Symbol && it.value[0] == ';') &&
+        !as {
+        it = p.collect(d)
+
+		switch it.itype {
+			case item.Eof:
+				return p.errorf(it, d,
+                    "in typedef: expected identifier or '('")
+			case item.Id:
+				if it.value == "as" {
+					rewind_whitespace(p, d, it)
+					as = true
+					continue
 				}
-				if (!function_ptr) name = item;
-				break;
-			case item_symbol:
-				if (item.value[0] == ';') continue;
-			case item_open_symbol:
-				if (!function_ptr && item.value[0] == '(') {
-					function_ptr = true;
-					append(decl, item);
-					name = parse_function_ptr(p, decl);
-					if (decl->error) return name;
-					continue;
+				
+                if (!function_ptr) {
+                    name = it
+                }
+
+			case item.Symbol:
+				if it.value[0] == ';' {
+                    continue;
+                }
+                
+                // is this necessary?
+                fallthrough
+
+			case item.OpenSymbol:
+				if !function_ptr && it.value[0] == '(' {
+					function_ptr = true
+                    d.append(it)
+					
+                    name = parse_function_ptr(p, d)
+                    
+					if (d.err) {
+                        return name
+                    }
+                    
+					continue
 				}
+                fallthrough
 			default:
-				break;
+				break
 		}
 
-		append(decl, item);
-	} while (
-			item.type != item_error                             &&
-			!(item.type == item_symbol && item.value[0] == ';') &&
-			!as
-	);
-
-	if (item.type == item_error) {
-		decl->error = true;
-		return item;
+		d.append(it)
+        
+	}
+    
+	if (it.itype == item.Error {
+		d.err = true;
+		return it;
 	}
 
-	if (!as) parser.backup(p, item);
-	return name;
+	if !as {
+        p.backup(it)
+    }
+    
+	return name
 }
 
 static lex_item.t parse_struct (parser.t * p, decl_t * decl) {

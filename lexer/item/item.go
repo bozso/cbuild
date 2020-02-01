@@ -83,7 +83,7 @@ func (it Item) String() (s string) {
     return
 }
 
-func Equals(a, b Item) bool {
+func (a Item) Equals(b Item) bool {
 	return (
 			a.itype    == b.itype    &&
 			a.value    == b.value    &&

@@ -16,6 +16,7 @@ import pkg_export from "../package/export.module.c";
 import pkg_import from "../package/import.module.c";
 
 hash_t * options = NULL;
+
 static void init_options(){
 	options = hash_new();
 
@@ -146,7 +147,7 @@ export lex_item.t parse_typed(parser.t * p, lex_item.t type, lex_item.t item, bo
 	return ident;
 }
 
-export lex_item.t parse (parser.t * p, lex_item.t item, bool is_export) {
+export lex_item.t idParse (parser.t * p, lex_item.t item, bool is_export) {
 	lex_item.t ident = {0};
 	lex_item.t type  = {0};
 	lex_item.t from  = {0};
