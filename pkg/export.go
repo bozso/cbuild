@@ -39,7 +39,7 @@ types = map[string]export.T{
 }
 
 
-func Add(local, alias, symbol, Type, symbol, declaration string parent Pkg) string
+func Add(local, alias, symbol, Type, declaration string parent Pkg) string
 	string export_name = alias == NULL ? local : alias;
     
 	if (hash_has(parent->exports, export_name)) {
