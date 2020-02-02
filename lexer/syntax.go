@@ -7,10 +7,6 @@
 
 package lexer
 
-
-// lex_state_fn - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.h:9
-type lex_state_fn = func([]lex_lexer_s) interface{}
-
 // lex_syntax_new - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:22
 func lex_syntax_new(input []stream_t, filename []byte, error_ [][]byte) []lex_t {
 	// declaration for state functions
@@ -21,59 +17,68 @@ func lex_syntax_new(input []stream_t, filename []byte, error_ [][]byte) []lex_t 
 // emit_c_code - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:26
 func emit_c_code(lex []lex_t, fn lex_state_fn) interface{} {
 	lex_backup(lex)
-	if uint32(lex[0].pos) > uint32(lex[0].start) {
+	
+    if uint32(lex[0].pos) > uint32(lex[0].start) {
 		lex_emit(lex, item_c_code)
 	}
-	if len(fn) == 0 {
+	
+    if len(fn) == 0 {
 		lex_next(lex)
 	}
-	return lex_state_fn(fn)
+	
+    return lex_state_fn(fn)
 }
 
 // eof - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:38
+
 func eof(lex []lex_t) interface{} {
 	lex_backup(lex)
-	if uint32(lex[0].pos) > uint32(lex[0].start) {
+	
+    if uint32(lex[0].pos) > uint32(lex[0].start) {
 		lex_emit(lex, item_c_code)
 	}
-	lex_emit(lex, item_eof)
-	return nil
+	
+    lex_emit(lex, item_eof)
+	
+    return nil
 }
 
 // lex_c - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:50
 func lex_c(lex []lex_t) (c4goDefaultReturn interface{}) {
 	var next byte
-	for 1 != 0 {
+	
+    for 1 != 0 {
 		var c byte = lex_next(lex)
-		if int32(c) == 0 {
+		
+        if int32(c) == 0 {
 			// lexes standard C code looking for things that might be modular c
 			return eof(lex)
 		}
-		if int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISspace)) != 0 {
+		
+        if int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISspace)) != 0 {
 			return emit_c_code(lex, lex_whitespace)
 		}
-		if int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISalpha)) != 0 {
+		
+        if int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISalpha)) != 0 {
 			return emit_c_code(lex, lex_id)
 		}
-		if int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISdigit)) != 0 {
+		
+        if int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISdigit)) != 0 {
 			return emit_c_code(lex, lex_number)
 		}
+        
 		switch int32(c) {
+
 		case '\'':
 			return emit_c_code(lex, lex_squote)
+
 		case '"':
 			return emit_c_code(lex, lex_quote)
-		case ';':
-			fallthrough
-		case '.':
-			fallthrough
-		case ',':
-			fallthrough
-		case '=':
-			fallthrough
-		case '*':
+
+		case ';', '.', ',', '=', '*':
 			emit_c_code(lex, nil)
 			lex_emit(lex, item_symbol)
+
 		case '-':
 			if int32(lex_peek(lex)) == int32('>') {
 				lex_next(lex)
@@ -90,21 +95,13 @@ func lex_c(lex []lex_t) (c4goDefaultReturn interface{}) {
 			if int32(next) == int32('/') || int32(next) == int32('*') {
 				return emit_c_code(lex, lex_comment)
 			}
-		case '(':
-			fallthrough
-		case '[':
-			fallthrough
-		case '{':
+		case '(', '[', '{':
 			emit_c_code(lex, nil)
 			lex_emit(lex, item_open_symbol)
-		case ')':
-			fallthrough
-		case ']':
-			fallthrough
-		case '}':
+
+		case ')', ']', '}':
 			emit_c_code(lex, nil)
 			lex_emit(lex, item_close_symbol)
-			break
 		}
 	}
 	return

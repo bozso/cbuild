@@ -5,12 +5,6 @@
 //	https://github.com/Konstantin8105/c4go/
 //
 
-/* AST Error :
-cannot parse line: `UnusedAttr 0x6c03330 <line:15:451> Inherited unused`. could not match regexp with string
-^(?P<address>[0-9a-fx]+) <(?P<position>.*)>(?P<unused> unused)?[\s]*$
-0x6c03330 <line:15:451> Inherited unused
-
-*/
 
 package parser
 

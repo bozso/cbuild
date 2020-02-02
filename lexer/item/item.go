@@ -40,7 +40,7 @@ var TypeNames = string[totalSymbols]{
 	"arrow symbol",
 }
 
-type T struct {
+type Item struct {
 	itype Type
 	value string
     length, line, linePos, start, index int
@@ -48,7 +48,7 @@ type T struct {
 
 var Empty = Item{}
 
-func New(value string, itype Type, line, line_pos, start int) T {
+func New(value string, itype Type, line, line_pos, start int) Item {
 	return Item{
 		value    : value,
 		length   : len(value),
@@ -59,7 +59,7 @@ func New(value string, itype Type, line, line_pos, start int) T {
 	}
 }
 
-func (it T) String() (s string) {
+func (it Item) String() (s string) {
     name := TypeNames[it.itype]
     
     switch it.itype {
@@ -69,8 +69,10 @@ func (it T) String() (s string) {
     } else {
         s = v
     }
+    
     case Eof:
         s = "<eof>"
+    
     default:
     v := it.value
     
@@ -83,7 +85,7 @@ func (it T) String() (s string) {
     return
 }
 
-func (a T) Equals(b T) bool {
+func (a Item) Equals(b Item) bool {
 	return (
 			a.itype    == b.itype    &&
 			a.value    == b.value    &&
@@ -94,7 +96,7 @@ func (a T) Equals(b T) bool {
 	)
 }
 
-func (it T) Dup() T {
+func (it Item) Dup() Item {
     return New(
         it.value,
         it.itype,
@@ -104,7 +106,7 @@ func (it T) Dup() T {
     )
 }
 
-func (it T) ReplaceValue(value string) T {
+func (it Item) ReplaceValue(value string) Item {
 	return New(
 		value,
 		it.itype,
@@ -113,3 +115,40 @@ func (it T) ReplaceValue(value string) T {
 		it.start
 	)
 }
+
+type Buffer struct {
+	items    []Item
+}
+
+func NewBuffer() (b T) {
+	b.items = make([]Item)
+	return
+}
+
+func (b Buffer) Len() int {
+    return len(b.items)
+}
+
+func (b *Buffer) Push(it Item) *Buffer {
+    b.items = append(b.items, it)
+	return b
+}
+
+// lex_buffer_next - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/buffer.c:65
+//func (b *T) Next() item.T {
+	//if uint32(b.length) == 0 {
+		//return lex_item_new([]byte("No more items\x00"), item_error, 0, 0, 0)
+	//}
+	
+    //it := b.items[uint32(b.cursor)]
+	
+    //b.cursor = func() uint32 {
+		//if uint32(b.cursor)+1 < uint32(b.capacity) {
+			//return uint32(b.cursor) + 1
+		//}
+		//return 0
+	//}()
+    
+	//b.length -= uint32(1)
+	//return it
+//}

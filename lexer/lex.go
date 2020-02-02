@@ -8,72 +8,66 @@
 package lexer
 
 import (
+    "io"
     "github.com/bozso/cbuild/lexer/item"
+    "github.com/bozso/cbuild/lexer/buffer"
 )
 
-// lex_state_fn - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.c:15
-type lex_state_fn = func([]lex_lexer_s) interface{}
+type stateFn = func(*Lexer) interface{}
 
-// lex_lexer_s - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.c:17
-type lex_lexer_s struct {
-	in       []stream_t
-	input    []byte
-	filename []byte
-	length   uint32
-	start    uint32
-	pos      uint32
-	width    uint32
-	line     uint32
-	line_pos uint32
-	items    []lex_buffer_t
-	state    lex_state_fn
+// Lexer - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.c:17
+type Lexer struct {
+	in                                        io.Reader
+	input, filename                           string
+	length, start, pos, width, line, line_pos uint32
+    items                                     item.Buffer
+	state                                     stateFn
 }
-
-// lex_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.c:17
-type lex_t = lex_lexer_s
 
 // lex_new - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.c:35
-func lex_new(start lex_state_fn, in []stream_t, filename []byte) []lex_t {
-	var lex []lex_t = make([]lex_t, 1)
-	lex[0].in = in
-	lex[0].filename = noarch.Strdup(filename)
-	lex[0].input = nil
-	lex[0].length = 0
-	lex[0].items = lex_buffer_new(2)
-	lex[0].state = start
-	lex[0].line = 0
-	return lex
+func New(start stateFn, in io.Reader, filename string) (l Lexer) {
+	l.in = in
+	l.filename = filename
+	l.input = nil
+	l.length = 0
+	l.items = item.NewBuffer()
+	l.state = start
+	l.line = 0
+	
+    return
 }
 
-// lex_errorf - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.c:49
-func lex_errorf(lex []lex_t, fmt_ []byte, c4goArgs ...interface{}) lex_state_fn {
-	var args = create_va_list(c4goArgs)
-	va_start(args, fmt_)
-	var message []byte
-	vasprintf((*[1000000][]byte)(unsafe.Pointer(&message))[:], fmt_, args)
-	var error_ lex_item_t = lex_item_new(message, item_error, uint32(lex[0].line), uint32(lex[0].line_pos), uint32(lex[0].pos))
-	lex[0].items = lex_buffer_push(lex[0].items, error_)
-	va_end(args)
+func (l *Lexer) Errorf(format string, args ...interface{}) stateFn {
+    msg := fmt.Sprintf(format, args...)
+    
+	e := item.New(message, item.Error, l.line, l.line_pos, l.pos)
+	l.items.Push(e)
 	return nil
 }
 
-// lex_next - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.c:62
-func lex_next(lex []lex_t) byte {
-	if uint32(lex[0].pos)+1 > uint32(lex[0].length) {
-		if lex[0].in[0].error_.code != 0 {
-			lex_errorf(lex, []byte("Error reading input: %s\x00"), lex[0].in[0].error_.message)
-			return byte(0)
+func (l *Lexer) Next() (b byte) {
+    if l.pos + 1 > l.length {
+		if l.in.error_.code != 0 {
+			l.Errorf("Error reading input: %s\x00", l.in.error_.message)
+			return
 		}
-		var next_length uint32 = uint32(lex[0].length) + 4096 + 1
-		lex[0].input = realloc(lex[0].input, next_length).([]byte)
+        
+        // TODO: properly figure out the logic here
+        // do prevoius reads into l.input need to be preserved?
+		nextLength := l.length + 4096
+        
+        l.input = make([]byte, nextLength)
+        
+        _, e = lex.in.Read(lex.input)
+        
+        if e != nil {
+        
 		var len_ noarch.SsizeT = stream_read(lex[0].in, lex[0].input[0+int32(lex[0].length):], 4096)
 		if len_ < noarch.SsizeT(0) {
 			lex_errorf(lex, []byte("Error reading input: %s\x00"), lex[0].in[0].error_.message)
-			return byte(0)
+			return
 		}
-		if len_ == noarch.SsizeT(0) {
-			return byte(0)
-		}
+
 		lex[0].length += uint32(len_)
 		lex[0].input[uint32(lex[0].length)] = byte(0)
 	}
