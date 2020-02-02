@@ -5,7 +5,7 @@
 //	https://github.com/Konstantin8105/c4go/
 //
 
-package main
+package parser
 
 // escape - transpiled function from  /home/istvan/packages/downloaded/cbuild/parser/string.c:5
 func escape(c []byte) (c4goDefaultReturn byte) {
@@ -78,5 +78,3 @@ func string_parse(input []byte) []byte {
 	o[0] = byte(0)
 	return input
 }
-
-type _Bool int32

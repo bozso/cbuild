@@ -5,84 +5,11 @@
 //	https://github.com/Konstantin8105/c4go/
 //
 
-package main
+package lexer
 
-// #include </usr/include/string.h>
-// #include </usr/include/stdio.h>
-import "C"
-
-import "reflect"
-import "unsafe"
-import "github.com/Konstantin8105/c4go/noarch"
-
-// stream_error_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:7
-type stream_error_t struct {
-	message []byte
-	code    int32
-}
-
-// stream_read_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:12
-type stream_read_t = func(interface{}, interface{}, uint32, []stream_error_t) noarch.SsizeT
-
-// stream_write_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:13
-type stream_write_t = func(interface{}, interface{}, uint32, []stream_error_t) noarch.SsizeT
-
-// stream_pipe_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:14
-type stream_pipe_t = func(interface{}, interface{}, []stream_error_t) noarch.SsizeT
-
-// stream_close_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:15
-type stream_close_t = func(interface{}, []stream_error_t) noarch.SsizeT
-
-// stream_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:17
-type stream_t struct {
-	ctx    interface{}
-	read   stream_read_t
-	write  stream_write_t
-	pipe   stream_pipe_t
-	close  stream_close_t
-	error_ stream_error_t
-	type_  int32
-}
-
-// lex_item_type - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/item.h:7
-type lex_item_type = int32
-
-const (
-	item_error         lex_item_type = 0
-	item_eof                         = 1
-	item_whitespace                  = 2
-	item_c_code                      = 3
-	item_id                          = 4
-	item_number                      = 5
-	item_char_literal                = 6
-	item_quoted_string               = 7
-	item_preprocessor                = 8
-	item_comment                     = 9
-	item_symbol                      = 10
-	item_open_symbol                 = 11
-	item_close_symbol                = 12
-	item_arrow                       = 13
-	item_total_symbols               = 14
+import (
+    "github.com/bozso/cbuild/lexer/item"
 )
-
-// lex_item_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/item.h:30
-type lex_item_t struct {
-	type_    lex_item_type
-	value    []byte
-	length   uint32
-	line     uint32
-	line_pos uint32
-	start    uint32
-	index    uint32
-}
-
-// lex_buffer_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/buffer.h:8
-type lex_buffer_t struct {
-	items    []lex_item_t
-	capacity uint32
-	length   uint32
-	cursor   uint32
-}
 
 // lex_state_fn - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.c:15
 type lex_state_fn = func([]lex_lexer_s) interface{}
