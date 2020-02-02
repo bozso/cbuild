@@ -1,50 +1,82 @@
-package parser
+//
+//	Package - transpiled by c4go
+//
+//	If you have found any issues, please raise an issue at:
+//	https://github.com/Konstantin8105/c4go/
+//
 
-func escape(c byte) byte {
-	switch c {
-		case 'a':
-			return '\a'
-		case 'b':
-			return '\b'
-		case 'f':
-			return '\f'
-		case 'n':
-			return '\n'
-		case 'r':
-			return '\r'
-		case 't':
-			return '\t'
-		case 'v':
-			return '\v'
+package main
+
+// escape - transpiled function from  /home/istvan/packages/downloaded/cbuild/parser/string.c:5
+func escape(c []byte) (c4goDefaultReturn byte) {
+	switch int32(c[0]) {
+	case 'a':
+		return '\a'
+	case 'b':
+		return '\b'
+	case 'f':
+		return '\f'
+	case 'n':
+		return '\n'
+	case 'r':
+		return '\r'
+	case 't':
+		return '\t'
+	case 'v':
+		return '\v'
+	default:
+		return c[0]
+	}
+	return
+}
+
+// string_parse - transpiled function from  /home/istvan/packages/downloaded/cbuild/parser/string.c:26
+func string_parse(input []byte) []byte {
+	var c []byte = input
+	var o []byte = input
+	if int32(c[0]) != int32('"') {
+		// nota quoted string
+		return nil
+	}
+	func() []byte {
+		tempVarUnary := c
+		defer func() {
+			c = c[0+1:]
+		}()
+		return tempVarUnary
+	}()
+	for int32(c[0]) != 0 && int32(c[0]) != int32('"') {
+		switch int32(c[0]) {
+		case '\\':
+			func() []byte {
+				tempVarUnary := c
+				defer func() {
+					c = c[0+1:]
+				}()
+				return tempVarUnary
+			}()
+			o[0] = escape(c)
 		default:
-			return c
-	}
-}
-
-func Parse(input string) (s string) {
-	c := input[0]
-	o := input
-
-
-	if c != '"' {
-		return "" // nota quoted string
-	}
-	c++
-
-	for *c != 0 && *c != '"' {
-		switch(*c) {
-			case '\\':
-				c++
-				*o = escape(c)
-			default:
-				*o = *c
-				break
+			o[0] = c[0]
+			break
 		}
-		c++
-        o++
+		func() []byte {
+			tempVarUnary := c
+			defer func() {
+				c = c[0+1:]
+			}()
+			return tempVarUnary
+		}()
+		func() []byte {
+			tempVarUnary := o
+			defer func() {
+				o = o[0+1:]
+			}()
+			return tempVarUnary
+		}()
 	}
-    
-	*o = 0
-	
-    return input
+	o[0] = byte(0)
+	return input
 }
+
+type _Bool int32

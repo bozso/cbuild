@@ -1,9 +1,9 @@
 package item
 
-type T int
+type Type int
 
 const(
-	Error T = iota
+	Error Type = iota
 	Eof
 	Whitespace
 	CCode
@@ -40,15 +40,15 @@ var TypeNames = string[totalSymbols]{
 	"arrow symbol",
 }
 
-type Item struct {
-	itype T
+type T struct {
+	itype Type
 	value string
     length, line, linePos, start, index int
 }
 
 var Empty = Item{}
 
-func New(value string, itype T, line, line_pos, start int) Item {
+func New(value string, itype Type, line, line_pos, start int) T {
 	return Item{
 		value    : value,
 		length   : len(value),
@@ -59,8 +59,8 @@ func New(value string, itype T, line, line_pos, start int) Item {
 	}
 }
 
-func (it Item) String() (s string) {
-    name := TypeNames[it.Type]
+func (it T) String() (s string) {
+    name := TypeNames[it.itype]
     
     switch it.itype {
     case Error:
@@ -83,7 +83,7 @@ func (it Item) String() (s string) {
     return
 }
 
-func (a Item) Equals(b Item) bool {
+func (a T) Equals(b T) bool {
 	return (
 			a.itype    == b.itype    &&
 			a.value    == b.value    &&
@@ -94,7 +94,7 @@ func (a Item) Equals(b Item) bool {
 	)
 }
 
-func (it Item) Dup() Item {
+func (it T) Dup() T {
     return New(
         it.value,
         it.itype,
@@ -104,7 +104,7 @@ func (it Item) Dup() Item {
     )
 }
 
-func (it Item) ReplaceValue(value string) Item {
+func (it T) ReplaceValue(value string) T {
 	return New(
 		value,
 		it.itype,

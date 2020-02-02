@@ -1,258 +1,434 @@
-package lexer
+//
+//	Package - transpiled by c4go
+//
+//	If you have found any issues, please raise an issue at:
+//	https://github.com/Konstantin8105/c4go/
+//
 
-import (
-    "fmt"
-    "github.com/bozso/cbuild/lexer/item"
+package main
+
+import "unicode"
+import "github.com/Konstantin8105/c4go/noarch"
+
+// lex_state_fn - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.h:9
+type lex_state_fn = func([]lex_lexer_s) interface{}
+
+// stream_error_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:7
+type stream_error_t struct {
+	message []byte
+	code    int32
+}
+
+// stream_read_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:12
+type stream_read_t = func(interface{}, interface{}, uint32, []stream_error_t) noarch.SsizeT
+
+// stream_write_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:13
+type stream_write_t = func(interface{}, interface{}, uint32, []stream_error_t) noarch.SsizeT
+
+// stream_pipe_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:14
+type stream_pipe_t = func(interface{}, interface{}, []stream_error_t) noarch.SsizeT
+
+// stream_close_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:15
+type stream_close_t = func(interface{}, []stream_error_t) noarch.SsizeT
+
+// stream_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/../deps/stream/stream.h:17
+type stream_t struct {
+	ctx    interface{}
+	read   stream_read_t
+	write  stream_write_t
+	pipe   stream_pipe_t
+	close  stream_close_t
+	error_ stream_error_t
+	type_  int32
+}
+
+// lex_item_type - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/item.h:7
+type lex_item_type = int32
+
+const (
+	item_error         lex_item_type = 0
+	item_eof                         = 1
+	item_whitespace                  = 2
+	item_c_code                      = 3
+	item_id                          = 4
+	item_number                      = 5
+	item_char_literal                = 6
+	item_quoted_string               = 7
+	item_preprocessor                = 8
+	item_comment                     = 9
+	item_symbol                      = 10
+	item_open_symbol                 = 11
+	item_close_symbol                = 12
+	item_arrow                       = 13
+	item_total_symbols               = 14
 )
 
-func New(input stream, string filename) Lexer {
-    return new(lexC, input, filename) 
+// lex_item_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/item.h:30
+type lex_item_t struct {
+	type_    lex_item_type
+	value    []byte
+	length   uint32
+	line     uint32
+	line_pos uint32
+	start    uint32
+	index    uint32
 }
 
-func (l *Lexer) emitCCode(fn StateFn) StateFn {
-    l.Backup()
-    
-    if l.pos > l.start {
-        l.Emit(item.CCode)
-    }
-    
-    if fn == nil {
-        l.Next()
-    }
-
-	return fn
+// lex_buffer_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/buffer.h:8
+type lex_buffer_t struct {
+	items    []lex_item_t
+	capacity uint32
+	length   uint32
+	cursor   uint32
 }
 
-func (l * Lexer) eof() {
-	l.Backup()
+// lex_lexer_s - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.h:14
+type lex_lexer_s struct {
+	in       []stream_t
+	input    []byte
+	filename []byte
+	length   uint32
+	start    uint32
+	pos      uint32
+	width    uint32
+	line     uint32
+	line_pos uint32
+	items    []lex_buffer_t
+	state    lex_state_fn
+}
 
-	if (l.pos > l.start) {
-        l.Emit(item.CCode)
+// lex_t - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/lex.h:14
+type lex_t = lex_lexer_s
+
+// lex_syntax_new - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:22
+func lex_syntax_new(input []stream_t, filename []byte, error_ [][]byte) []lex_t {
+	// declaration for state functions
+	//static void * lex_export(lexer.t * lex);
+	return lex_new(lex_c, input, filename)
+}
+
+// emit_c_code - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:26
+func emit_c_code(lex []lex_t, fn lex_state_fn) interface{} {
+	lex_backup(lex)
+	if uint32(lex[0].pos) > uint32(lex[0].start) {
+		lex_emit(lex, item_c_code)
 	}
-    
-	l.Emit(item.Eof);
-
-	return nil;
+	if len(fn) == 0 {
+		lex_next(lex)
+	}
+	return lex_state_fn(fn)
 }
 
-/* lexes standard C code looking for things that might be modular c */
+// eof - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:38
+func eof(lex []lex_t) interface{} {
+	lex_backup(lex)
+	if uint32(lex[0].pos) > uint32(lex[0].start) {
+		lex_emit(lex, item_c_code)
+	}
+	lex_emit(lex, item_eof)
+	return nil
+}
 
-func lex_c(l *Lexer) {
-    var next byte
-    
+// lex_c - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:50
+func lex_c(lex []lex_t) (c4goDefaultReturn interface{}) {
+	var next byte
+	for 1 != 0 {
+		var c byte = lex_next(lex)
+		if int32(c) == 0 {
+			// lexes standard C code looking for things that might be modular c
+			return eof(lex)
+		}
+		if int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISspace)) != 0 {
+			return emit_c_code(lex, lex_whitespace)
+		}
+		if int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISalpha)) != 0 {
+			return emit_c_code(lex, lex_id)
+		}
+		if int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISdigit)) != 0 {
+			return emit_c_code(lex, lex_number)
+		}
+		switch int32(c) {
+		case '\'':
+			return emit_c_code(lex, lex_squote)
+		case '"':
+			return emit_c_code(lex, lex_quote)
+		case ';':
+			fallthrough
+		case '.':
+			fallthrough
+		case ',':
+			fallthrough
+		case '=':
+			fallthrough
+		case '*':
+			emit_c_code(lex, nil)
+			lex_emit(lex, item_symbol)
+		case '-':
+			if int32(lex_peek(lex)) == int32('>') {
+				lex_next(lex)
+				lex_emit(lex, item_arrow)
+			}
+		case '#':
+			if uint32(lex[0].pos) > 2 && int32(lex[0].input[uint32(lex[0].pos)-2]) == int32('\n') {
+				return emit_c_code(lex, lex_preprocessor)
+			}
+		case '_':
+			return emit_c_code(lex, lex_id)
+		case '/':
+			next = lex_peek(lex)
+			if int32(next) == int32('/') || int32(next) == int32('*') {
+				return emit_c_code(lex, lex_comment)
+			}
+		case '(':
+			fallthrough
+		case '[':
+			fallthrough
+		case '{':
+			emit_c_code(lex, nil)
+			lex_emit(lex, item_open_symbol)
+		case ')':
+			fallthrough
+		case ']':
+			fallthrough
+		case '}':
+			emit_c_code(lex, nil)
+			lex_emit(lex, item_close_symbol)
+			break
+		}
+	}
+	return
+}
+
+// lex_whitespace - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:117
+func lex_whitespace(lex []lex_t) interface{} {
+	var c byte
+	for int32((func() byte {
+		c = lex_next(lex)
+		return c
+	}())) != 0 && int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISspace)) != 0 {
+	}
+	lex_backup(lex)
+	lex_emit(lex, item_whitespace)
+	if int32(c) == 0 {
+		return eof(lex)
+	}
+	return lex_c
+}
+
+// lex_oneline_comment - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:127
+func lex_oneline_comment(lex []lex_t) interface{} {
+	var c byte
+	for int32((func() byte {
+		c = lex_next(lex)
+		return c
+	}())) != 0 && int32(c) != int32('\n') {
+	}
+	lex_emit(lex, item_comment)
+	if int32(c) == 0 {
+		return eof(lex)
+	}
+	return lex_c
+}
+
+// lex_multiline_comment - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:135
+func lex_multiline_comment(lex []lex_t) interface{} {
+	var c byte
 	for {
-		c := l.Next()
-
-		if c == 0 {
-            return l.eof()
-        }
-        
-		if isspace(c) {
-            return l.emitCCode(lex_whitespace)
-        }
-        
-		if isalpha(c) {
-            return l.emitCCode(lex_id)
-        }
-        
-		if isdigit(c) {
-            return l.EmitCCode(lex_number)
-        }
-
-		switch c {
-			case '\'':
-				return l.emitCCode(lex_squote);
-
-			case '"':
-				return l.emitCCode(lex_quote);
-
-			case ';', '.', ',', '=', '*':
-				l.emitCCode(nil)
-				l.Emit(item.Symbol)
-
-			case '-':
-				if (l.Peek() == '>') {
-					l.Next();
-					l.Emit(item.Arrow)
-				}
-			case '#':
-				if (l.pos > 2 && l.input[l.pos - 2] == '\n') {
-					return l.emitCCode(lex_preprocessor)
-                }
-			case '_':
-				return l.emitCCode(lex_id)
-
-			case '/':
-				next = l.Peek();
-				if next == '/' || next == '*' {
-					return l.emitCCode(lex_comment)
-                }
-			
-            case '(', '[', '{':
-				l.emitCCode(nil)
-				l.Emit(item.OpenSymbol)
-            
-			case ')', ']', '}':
-				l.emitCCode(nil)
-				l.emit(itemCloseSymbol)
+		for int32((func() byte {
+			c = lex_next(lex)
+			return c
+		}())) != 0 && int32(c) != int32('*') {
+		}
+		if int32(c) == 0 {
+			lex_errorf(lex, []byte("Unterminated multiline comment\n %*s\x00"), lex[0].input[0+int32(lex[0].start):])
+			return eof(lex)
+		}
+		if !(int32(lex_peek(lex)) != int32('/')) {
+			break
 		}
 	}
-}
-
-func lex_whitespace(l *Lexer) StateFn {
-	var c byte
-    
-    for (c = l.Next()) != 0 && isspace(c) {}
-	
-    l.Backup()
-	l.Emit(item.Whitespace)
-
-	if (c == 0) {
-        return l.eof()
-    }
-    
-	return lex_c;
-}
-
-func lex_oneline_comment(l *Lexer) StateFn {
-	var c byte
-    
-    for (c = l.Next()) != 0 && c != '\n' {}
-	
-    l.Emit(item.Comment)
-    
-	if (c == 0) {
-        return l.eof()
-    }
-    
+	lex_next(lex)
+	lex_emit(lex, item_comment)
 	return lex_c
 }
 
-func lex_multiline_comment(l *Lexer) StateFn {
-	var c byte
-	
-    for l.Peek() != '/' {
-		for (c = l.Next()) != 0 && c != '*' {}
-
-		if (c == 0) {
-			l.Errorf("Unterminated multiline comment\n %*s",
-                l.input + l.start)
-            
-			return l.eof()
-		}
-
+// lex_comment - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:152
+func lex_comment(lex []lex_t) (c4goDefaultReturn interface{}) {
+	lex[0].pos += uint32(1)
+	var c byte = lex_next(lex)
+	if int32(c) == int32('/') {
+		return lex_oneline_comment(lex)
+	} else {
+		return lex_multiline_comment(lex)
 	}
-
-	l.Next();
-	l.Emit(item.Comment)
-    
-	return lex_c
+	return
 }
 
-func lex_comment(l *Lexer) StateFn {
-	l.pos++
-    
-	c = l.Next()
-
-	if (c == '/') {
-        return lex_oneline_comment(l)
-    } else {
-        return lex_multiline_comment(l)
-    }
-}
-
-func lex_number(l * Lexer) StateFn {
+// lex_number - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:160
+func lex_number(lex []lex_t) interface{} {
 	var c byte
-    
-	for (c = l.Next()) != 0 && isdigit(c) {}
-	
-    l.Backup()
-	l.Emit(item.Number)
-
-	if (c == 0) {
-        return l.eof()
-    }
-    
+	for int32((func() byte {
+		c = lex_next(lex)
+		return c
+	}())) != 0 && int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISdigit)) != 0 {
+	}
+	lex_backup(lex)
+	lex_emit(lex, item_number)
+	if int32(c) == 0 {
+		return eof(lex)
+	}
 	return lex_c
 }
 
-func lex_id(l *Lexer) StateFn {
+// lex_id - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:170
+func lex_id(lex []lex_t) interface{} {
 	var c byte
-    
-	for (c = l.Next()) != 0 && (isalnum(c) || c == '_') {}
-    
-	l.Backup();
-	l.Emit(item.Id)
-
-	if (c == 0) {
-        return l.eof()
-    }
-    
+	for int32((func() byte {
+		c = lex_next(lex)
+		return c
+	}())) != 0 && (int32(((__ctype_b_loc())[0])[int32(c)])&int32(uint16(noarch.ISalnum)) != 0 || int32(c) == int32('_')) {
+	}
+	lex_backup(lex)
+	lex_emit(lex, item_id)
+	if int32(c) == 0 {
+		return eof(lex)
+	}
 	return lex_c
 }
 
-
-func lex_quote(l *Lexer) StateFn {
-	l.pos++
-
-	c = byte('\'')
-    
-	for c != 0 && c != '"' && c != '\n' {
-		c = l.Next()
-        
-		if c == '\\' && l.Next() != 0 {
-			c = l.Next()
+// lex_quote - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:181
+func lex_quote(lex []lex_t) interface{} {
+	lex[0].pos += uint32(1)
+	var c byte
+	for {
+		c = lex_next(lex)
+		if int32(c) == int32('\\') && int32(lex_next(lex)) != 0 {
+			c = lex_next(lex)
 			continue
 		}
+		if !(int32(c) != 0 && int32(c) != int32('"') && int32(c) != int32('\n')) {
+			break
+		}
 	}
-
-	if c == 0 || c == '\n' {
-		return l.Errorf("Missing terminating '\"' character\n");
+	if int32(c) == 0 || int32(c) == int32('\n') {
+		return lex_errorf(lex, []byte("Missing terminating '\"' character\n\x00"))
 	}
-
-	l.Emit(item.QuotedString)
-    
+	lex_emit(lex, item_quoted_string)
 	return lex_c
 }
 
-func lex_squote(l *Lexer) StateFn {
-	l.pos++
-
-	c := byte('"')
-    
-	for c != 0 && c != '\'' {
-		c = lexer.next(lex);
-		if c == '\\' && l.Next() != 0 {
-			c = l.Next()
+// lex_squote - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:201
+func lex_squote(lex []lex_t) interface{} {
+	lex[0].pos += uint32(1)
+	var c byte
+	for {
+		c = lex_next(lex)
+		if int32(c) == int32('\\') && int32(lex_next(lex)) != 0 {
+			c = lex_next(lex)
 			continue
 		}
+		if !(int32(c) != 0 && int32(c) != int32('\'')) {
+			break
+		}
 	}
-
-	if (c == 0) {
-		length := lex.pos - l.start;
-		if (length > 10) {
-			return l.Errorf("Missing terminating ' character\n%.*s...",
-                10, l.input + l.start)
+	if int32(c) == 0 {
+		var length uint32 = uint32(lex[0].pos) - uint32(lex[0].start)
+		if length > 10 {
+			return lex_errorf(lex, []byte("Missing terminating ' character\n%.*s...\x00"), 10, lex[0].input[0+int32(lex[0].start):])
 		} else {
-			return l.Errorf("Missing terminating ' character\n%s",
-                l.input + l.start)
+			return lex_errorf(lex, []byte("Missing terminating ' character\n%s\x00"), lex[0].input[0+int32(lex[0].start):])
 		}
 	}
-
-	l.Emit(item.CharLiteral)
-    
+	lex_emit(lex, item_char_literal)
 	return lex_c
 }
 
-func lex_preprocessor(lexer.t * lex) StateFn {
-	c := l.Next()
-    
-	for c != '\n' && c != 0 {
-		c = l.Next();
+// lex_preprocessor - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/syntax.c:226
+func lex_preprocessor(lex []lex_t) interface{} {
+	var c byte = lex_next(lex)
+	for int32(c) != int32('\n') && int32(c) != 0 {
+		c = lex_next(lex)
 	}
-    
-	l.Backup();
-	l.Emit(item.Preprocessor)
-    
+	lex_backup(lex)
+	lex_emit(lex, item_preprocessor)
 	return lex_c
+}
+
+type _Bool int32
+
+// __ctype_b_loc from ctype.h
+// c function : const unsigned short int** __ctype_b_loc()
+// dep pkg    : unicode
+// dep func   :
+func __ctype_b_loc() [][]uint16 {
+	var characterTable []uint16
+
+	for i := 0; i < 255; i++ {
+		var c uint16
+
+		// Each of the bitwise expressions below were copied from the enum
+		// values, like _ISupper, etc.
+
+		if unicode.IsUpper(rune(i)) {
+			c |= ((1 << (0)) << 8)
+		}
+
+		if unicode.IsLower(rune(i)) {
+			c |= ((1 << (1)) << 8)
+		}
+
+		if unicode.IsLetter(rune(i)) {
+			c |= ((1 << (2)) << 8)
+		}
+
+		if unicode.IsDigit(rune(i)) {
+			c |= ((1 << (3)) << 8)
+		}
+
+		if unicode.IsDigit(rune(i)) ||
+			(i >= 'a' && i <= 'f') ||
+			(i >= 'A' && i <= 'F') {
+			// IsXDigit. This is the same implementation as the Mac version.
+			// There may be a better way to do this.
+			c |= ((1 << (4)) << 8)
+		}
+
+		if unicode.IsSpace(rune(i)) {
+			c |= ((1 << (5)) << 8)
+		}
+
+		if unicode.IsPrint(rune(i)) {
+			c |= ((1 << (6)) << 8)
+		}
+
+		// The IsSpace check is required because Go treats spaces as graphic
+		// characters, which C does not.
+		if unicode.IsGraphic(rune(i)) && !unicode.IsSpace(rune(i)) {
+			c |= ((1 << (7)) << 8)
+		}
+
+		// http://www.cplusplus.com/reference/cctype/isblank/
+		// The standard "C" locale considers blank characters the tab
+		// character ('\t') and the space character (' ').
+		if i == int('\t') || i == int(' ') {
+			c |= ((1 << (8)) >> 8)
+		}
+
+		if unicode.IsControl(rune(i)) {
+			c |= ((1 << (9)) >> 8)
+		}
+
+		if unicode.IsPunct(rune(i)) {
+			c |= ((1 << (10)) >> 8)
+		}
+
+		if unicode.IsLetter(rune(i)) || unicode.IsDigit(rune(i)) {
+			c |= ((1 << (11)) >> 8)
+		}
+
+		// Yes, I know this is a hideously slow way to do it but I just want to
+		// test if this works right now.
+		characterTable = append(characterTable, c)
+	}
+	return [][]uint16{characterTable}
 }
