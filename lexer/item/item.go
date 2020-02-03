@@ -134,6 +134,7 @@ func (b *Buffer) Push(it Item) *Buffer {
 	return b
 }
 
+// TODO: implement this properly
 // lex_buffer_next - transpiled function from  /home/istvan/packages/downloaded/cbuild/lexer/buffer.c:65
 //func (b *T) Next() item.T {
 	//if uint32(b.length) == 0 {
